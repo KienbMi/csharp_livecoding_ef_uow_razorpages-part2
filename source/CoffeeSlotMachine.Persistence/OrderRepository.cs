@@ -16,22 +16,28 @@ namespace CoffeeSlotMachine.Persistence
       _dbContext = dbContext;
     }
 
-    public async Task<IEnumerable<Order>> GetAllAsync() => await _dbContext.Orders.ToListAsync();
+    public async Task<Order[]> GetAllAsync() 
+      => await _dbContext.Orders
+                .ToArrayAsync();
 
-    public async Task<Order> GetByIdAsync(int id) => await _dbContext.Orders.FirstOrDefaultAsync(order => order.Id == id);
+    public async Task<Order> GetByIdAsync(int id) 
+      => await _dbContext.Orders
+                .FirstOrDefaultAsync(order => order.Id == id);
 
-    public async Task InsertAsync(Order order) => await _dbContext.Orders.AddAsync(order);
+    public async Task InsertAsync(Order order) 
+      => await _dbContext.Orders
+                .AddAsync(order);
 
-    public async Task<IEnumerable<Order>> GetAllWithProductAsync()
+    public async Task<Order[]> GetAllWithProductAsync()
      => await _dbContext.Orders
             .Include(order => order.Product)
             .OrderByDescending(order => order.Time)
-            .ToListAsync();
+            .ToArrayAsync();
 
     public async Task<Order> GetByIdWithProductAndCoinsAsync(int id)
     => await _dbContext.Orders
-          .Include(o => o.Product)
-          .SingleOrDefaultAsync(o => o.Id == id);
+            .Include(o => o.Product)
+            .SingleOrDefaultAsync(o => o.Id == id);
 
     public async Task<bool> DeleteAsync(int id)
     {

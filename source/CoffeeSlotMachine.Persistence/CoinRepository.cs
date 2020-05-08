@@ -16,13 +16,23 @@ namespace CoffeeSlotMachine.Persistence
       _dbContext = dbContext;
     }
 
-    public async Task<IEnumerable<Coin>> GetAllAsync() => await _dbContext.Coins.OrderBy(coin => coin.CoinValue).ToListAsync();
+    public async Task<Coin[]> GetAllAsync()
+      => await _dbContext.Coins
+                  .OrderBy(coin => coin.CoinValue)
+                  .ToArrayAsync();
 
-    public async Task<IEnumerable<Coin>> GetOrderedDescendingByValueAsync() => await _dbContext.Coins.OrderByDescending(coin => coin.CoinValue).ToListAsync();
+    public async Task<Coin[]> GetOrderedDescendingByValueAsync()
+      => await _dbContext.Coins
+                  .OrderByDescending(coin => coin.CoinValue)
+                  .ToArrayAsync();
 
-    public async Task<Coin> GetByIdAsync(int id) => await _dbContext.Coins.FindAsync(id);
+    public async Task<Coin> GetByIdAsync(int id) 
+      => await _dbContext.Coins
+                  .FindAsync(id);
 
-    public async Task AddAsync(Coin coin) => await _dbContext.Coins.AddAsync(coin);
+    public async Task AddAsync(Coin coin) 
+      => await _dbContext.Coins
+                  .AddAsync(coin);
 
     public async Task<bool> DeleteAsync(int id)
     {

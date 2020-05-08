@@ -24,11 +24,8 @@ namespace CoffeeSlotMachine.Core
     /// Gibt alle Produkte sortiert nach Namen zurück
     /// </summary>
     /// <returns></returns>
-    public async Task<IEnumerable<Product>> GetProductsAsync()
-    {
-      var products = await _unitOfWork.Products.GetAsync();
-      return products;
-    }
+    public async Task<Product[]> GetProductsAsync()
+      => await _unitOfWork.Products.GetAllAsync();
 
     /// <summary>
     /// Eine Bestellung wird für das Produkt angelegt.

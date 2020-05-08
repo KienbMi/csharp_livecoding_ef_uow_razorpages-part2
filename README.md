@@ -6,51 +6,38 @@
 
 ```html
 <li class="nav-item">
-    <a class="nav-link text-dark" asp-area="" asp-page="/OrderThruCoffeeList">Order</a>
+    <a class="nav-link text-dark" asp-area="" asp-page="/Products/Index">Products</a>
 </li>
 ```
 
-## Bestellseite (simple)
+## Übersicht über alle Produkte (Index)
 
 ## PageModel
 
 ```cs
-public class OrderThruCoffeeListModel : PageModel
+public class IndexModel : PageModel
 {
     private readonly IUnitOfWork _unitOfWork;
 
-    public ProductDto[] OrderCoffeeItems { get; set; }
-
-    public OrderThruCoffeeListModel(IUnitOfWork unitOfWork)
+    public IndexModel(IUnitOfWork unitOfWork)
     {
         _unitOfWork = unitOfWork;
     }
 
-    public async Task OnGet()
-    {
-        ViewData["Message"] = "Welcome to our Coffee Machine";
+    public Product[] Products { get; set; }
 
-        OrderCoffeeItems = await _unitOfWork
-            .Products
-            .GetProductDtosAsync();
-    }
+    public string ProductFilter { get; set; }
 
-    public async Task<IActionResult> OnPostProductSelected(int productId)
+    public async Task OnGet(string searchString)
     {
-        if (!ModelState.IsValid)
+        if(!string.IsNullOrEmpty(searchString))
         {
-        return Page();
+            Products = await _unitOfWork.Products.GetByNameAsync(searchString);
+            ProductFilter = searchString;
+        } else
+        {
+            Products = await _unitOfWork.Products.GetAllAsync();
         }
-
-        var orderController = new OrderController(_unitOfWork);
-
-        Product product = await _unitOfWork.Products.GetByIdAsync(productId);
-        Order order = await orderController.OrderCoffeeAsync(product);
-
-        return RedirectToPage(
-            "/InsertCoin",
-            new { orderId = order.Id }
-            );
     }
 }
 ```
@@ -59,122 +46,105 @@ public class OrderThruCoffeeListModel : PageModel
 
 ```html
 @page
-@model CoffeeSlotMachine.Web.Pages.OrderThruCoffeeListModel
+@model CoffeeSlotMachine.Web.Pages.Products.IndexModel
 @{
+  ViewData["Title"] = "All Products";
 }
 
-<h2>@ViewData["Message"]</h2>
+<p>
+  <a asp-page="./Create">Create New</a>
+</p>
 
-<form method="post">
-
-    <table class="table">
-
-        <thead>
-            <tr>
-                <th>
-                    @Html.DisplayNameFor(model => model.OrderCoffeeItems[0].ProductName)
-                </th>
-                <th>
-                    @Html.DisplayNameFor(model => model.OrderCoffeeItems[0].PriceInCents)
-                </th>
-                <th>
-                    @Html.DisplayNameFor(model => model.OrderCoffeeItems[0].NrOfOrders)
-                </th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var item in Model.OrderCoffeeItems)
-            {
-                <tr>
-                    <td>
-                        @Html.DisplayFor(_ => item.ProductName)
-                    </td>
-                    <td>
-                        @Html.DisplayFor(_ => item.PriceInCents)
-                    </td>
-                    <td>
-                        @Html.DisplayFor(_ => item.NrOfOrders)
-                    </td>
-                    <td>
-                        <button type="submit"
-                                class="btn btn-primary"
-                                asp-page-handler="ProductSelected"
-                                asp-route-productId="@item.ProductId">
-                            Select Product
-                        </button>
-                    </td>
-                </tr>
-            }
-        </tbody>
-
-    </table>
-
+<form asp-page="./Index" method="get">
+  <div class="form-actions no-color">
+    <p>
+      Find by name:
+      <input type="text" name="SearchString" value="@Model.ProductFilter" />
+      <input type="submit" value="Search" class="btn btn-default" /> |
+      <a asp-page="./Index">Back to full List</a>
+    </p>
+  </div>
 </form>
+
+<table class="table">
+
+  <thead>
+    <tr>
+      <th>
+        @Html.DisplayNameFor(model => model.Products.FirstOrDefault().Name)
+      </th>
+      <th>
+        @Html.DisplayNameFor(model => model.Products.FirstOrDefault().PriceInCents)
+      </th> 
+      <th>
+        @Html.DisplayNameFor(model => model.Products.FirstOrDefault().RowVersion)
+      </th>
+      <th>
+
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    @foreach (var product in Model.Products)
+    {
+      <tr>
+        <td>
+          @Html.DisplayFor(_ => product.Name)
+        </td>
+        <td>
+          @Html.DisplayFor(_ => product.PriceInCents)
+        </td>
+        <td>
+          @Html.DisplayFor(_ => product.RowVersion)
+        </td>
+        <td>
+          <a asp-page="./Edit" asp-route-id="@product.Id">Edit</a> |
+          <a asp-page="./Details" asp-route-id="@product.Id">Details</a> |
+          <a asp-page="./Delete" asp-route-id="@product.Id">Delete</a> 
+        </td>
+      </tr>
+    }
+  </tbody>
+
+</table>
+
+
 ```
 
-## Münzeinwurf
+
+## Details zu einem Produkt (Details)
 
 ## PageModel
 
 ```cs
-public class InsertCoinModel : PageModel
+public class DetailsModel : PageModel
 {
-    private readonly IUnitOfWork _unitOfWork;
+  private readonly IUnitOfWork _unitOfWork;
 
-    public Order ActualOrder { get; set; }
+  public DetailsModel(IUnitOfWork unitOfWork)
+  {
+    _unitOfWork = unitOfWork;
+  }
 
-    [BindProperty]
-    public int OrderId { get; set; }
+  public Product Product { get; set; }
 
-    public IEnumerable<Coin> Coins { get; set; }
-
-    [Range(1, 15)]
-    [BindProperty]
-    public int InsertedCoinId { get; set; }
-
-    public InsertCoinModel(IUnitOfWork unitOfWork)
+  public async Task<IActionResult> OnGet(int? id)
+  {
+    if(id==null)
     {
-        _unitOfWork = unitOfWork;
+      return NotFound();
     }
 
-    public async Task OnGet(int orderId)
-    {
-        ViewData["Message"] = "Insert Coin";
+    Product = await _unitOfWork.Products.GetByIdAsync(id.Value);
 
-        Coins = await _unitOfWork.Coins.GetAllAsync();
-        OrderId = orderId;
-        ActualOrder = await _unitOfWork.Orders.GetByIdWithProductAndCoinsAsync(orderId);
+    if(Product == null)
+    {
+      return NotFound();
     }
 
-    public async Task<IActionResult> OnPostInsertCoin()
-    {
-        if (!ModelState.IsValid)
-        {
-            return Page();
-        }
-
-
-        OrderController orderController = new OrderController(_unitOfWork);
-        var order = await _unitOfWork.Orders.GetByIdWithProductAndCoinsAsync(OrderId);
-
-        Coins = await _unitOfWork.Coins.GetAllAsync();
-        var coin = Coins.Single(ct => ct.Id == InsertedCoinId);
-
-        if (await orderController.InsertCoinAsync(order, coin.CoinValue))
-        {
-            return RedirectToPage(
-                "/CoffeeReady",
-                new { orderId = order.Id });
-        }
-
-        ViewData["Message"] = "Insert another Coin";
-
-        ActualOrder = order;
-
-        return Page();
-
-    }
+    return Page();
+  }
 }
 ```
 
@@ -182,120 +152,107 @@ public class InsertCoinModel : PageModel
 
 ```html
 @page
-
-@model CoffeeSlotMachine.Web.Pages.InsertCoinModel
+@model CoffeeSlotMachine.Web.Pages.Products.DetailsModel
 @{
-
+  ViewData["Title"] = "Product Details";
 }
 
-<h2>@ViewData["Message"]</h2>
+<div>
+  <h4>Product</h4>
+  <hr />
 
-<div asp-validation-summary="All"></div>
+  <dl class="row">
+    <dt class="col-sm-2">
+      @Html.DisplayNameFor(model => model.Product.Name)
+    </dt>
+    <dd class="col-sm-10">
+      @Html.DisplayFor(model => model.Product.Name)
+    </dd>
 
-<form method="post">
+    <dt class="col-sm-2">
+      @Html.DisplayNameFor(model => model.Product.PriceInCents)
+    </dt>
+    <dd class="col-sm-10">
+      @Html.DisplayFor(model => model.Product.PriceInCents)
+    </dd>
 
-    <input asp-for="@Model.OrderId" type="hidden" />
+    <dt class="col-sm-2">
+      @Html.DisplayNameFor(model => model.Product.RowVersion)
+    </dt>
+    <dd class="col-sm-10">
+      @Html.DisplayFor(model => model.Product.RowVersion)
+    </dd>
+  </dl>
+</div>
 
-    <div class="form-group">
-        <label asp-for="@Model.ActualOrder.Product.Name">Product:</label>
-        <input asp-for="@Model.ActualOrder.Product.Name" class="form-control" readonly="readonly" />
-    </div>
-
-    <div class="form-group">
-        <label asp-for="@Model.ActualOrder.Product.PriceInCents">Price:</label>
-        <input asp-for="@Model.ActualOrder.Product.PriceInCents" class="form-control" readonly="readonly" />
-    </div>
-
-    <div class="form-group">
-        <label asp-for="@Model.ActualOrder.ThrownInCents">Amount:</label>
-        <input asp-for="@Model.ActualOrder.ThrownInCents" class="form-control" readonly="readonly" />
-    </div>
-
-
-    <div class="form-group">
-        <label asp-for="@Model.Coins">Coins:</label>
-        <div>
-            <select asp-for="@Model.InsertedCoinId" class="form-control">
-                @foreach (var coinType in @Model.Coins)
-                {
-                    <option value="@coinType.Id">@coinType.CoinValue</option>
-                }
-            </select>
-        </div>
-
-    </div>
-
-    <button type="submit"
-            class="btn btn-primary"
-            asp-page-handler="InsertCoin">
-        Insert Coin
-    </button>
-
-</form>
+<div>
+  <a asp-page="./Edit" asp-route-id="@Model.Product.Id">Edit</a> |
+  <a asp-page="./Index">Back to List</a>
+</div>
 ```
 
-## Bestellbestätigung
+## Bearbeitung eines Produkts (Edit)
 
 ## PageModel
 
 ```cs
-public class CoffeeReadyModel : PageModel
+public class EditModel : PageModel
 {
-    private readonly IUnitOfWork _unitOfWork;
+  private readonly IUnitOfWork _unitOfWork;
 
-    public string CoinDepotString { get; set; }
+  public EditModel(IUnitOfWork unitOfWork)
+  {
+    _unitOfWork = unitOfWork;
+  }
 
-    public Order ActualOrder { get; set; }
+  [BindProperty]
+  public Product Product { get; set; }
 
-    public CoffeeReadyModel(IUnitOfWork unitOfWork)
+  public async Task<IActionResult> OnGet(int? id)
+  {
+    if (id == null)
     {
-        _unitOfWork = unitOfWork;
+      return NotFound();
     }
 
-    public string ReturnCoinsString
+    Product = await _unitOfWork.Products.GetByIdAsync(id.Value);
+    if (Product == null)
     {
-        get
-        {
-            if (String.IsNullOrEmpty(ActualOrder.ReturnCoinValues))
-            {
-                return "-";
-            }
-            StringBuilder coinsString = new StringBuilder();
-            int count = 1;
-            string[] centsStrings = ActualOrder.ReturnCoinValues.Split(";");
-            for (int i = 1; i < centsStrings.Length; i++)
-            {
-                if (centsStrings[i] == centsStrings[i - 1])
-                {
-                    count++;
-                }
-                else
-                {
-                    coinsString.Append($"{count}*{centsStrings[i - 1]} + ");
-                    count = 1;
-                }
-            }
-            coinsString.Append($"{count}*{centsStrings[centsStrings.Length - 1]} ");
-            return coinsString.ToString();
-        }
+      return NotFound();
     }
 
-    public async Task OnGet(int orderId)
+    return Page();
+  }
+
+  public async Task<IActionResult> OnPost()
+  {
+    if (!ModelState.IsValid)
     {
-        ViewData["Message"] = "Enjoy your Coffee";
-
-        OrderController orderController = new OrderController(_unitOfWork);
-
-        ActualOrder = await _unitOfWork.Orders.GetByIdWithProductAndCoinsAsync(orderId);
-        CoinDepotString = await orderController.GetCoinDepotStringAsync();
+      return Page();
     }
 
-    public IActionResult OnPostNextCoffee()
+    Product dbProduct = await _unitOfWork.Products.GetByIdAsync(Product.Id);
+    dbProduct.Name = Product.Name;
+    dbProduct.PriceInCents = Product.PriceInCents;
+
+    _unitOfWork.Products.Update(dbProduct);
+
+    try
     {
-        return RedirectToPage("/OrderThruCoffeeList");
+      await _unitOfWork.SaveAsync();
+    }
+    catch (DbUpdateConcurrencyException)
+    {
+      if(await _unitOfWork.Products.GetByIdAsync(Product.Id) == null)
+      {
+        return NotFound();
+      }
+
+      throw;
     }
 
-
+    return RedirectToPage("./Index");
+  }
 }
 ```
 
@@ -303,116 +260,86 @@ public class CoffeeReadyModel : PageModel
 
 ```html
 @page
-@model CoffeeSlotMachine.Web.Pages.CoffeeReadyModel
+@model CoffeeSlotMachine.Web.Pages.Products.EditModel
 @{
-    ViewData["Title"] = "Coffee Ready";
+  ViewData["Title"] = "Edit";
 }
 
-<h2>@ViewData["Message"]</h2>
+<h4>Edit</h4>
+<hr />
+<div class="row">
+  <div class="col-md-4">
 
-<form method="post">
-    <div class="form-group">
-        <label asp-for="@Model.ActualOrder.Product.Name">ProductName:</label>
-        <input asp-for="@Model.ActualOrder.Product.Name" class="form-control"
-               readonly="readonly" />
-    </div>
+    <form method="post">
+      <div asp-validation-summary="ModelOnly" class="text-danger"></div>
 
-    <div class="form-group">
-        <label asp-for="@Model.ActualOrder.Product.PriceInCents">Price:</label>
-        <input asp-for="@Model.ActualOrder.Product.PriceInCents" class="form-control" readonly="readonly" />
-    </div>
-    <div class="form-group">
-        <label asp-for="@Model.ActualOrder.ThrownInCents">ThrownInCents:</label>
-        <input asp-for="@Model.ActualOrder.ThrownInCents" class="form-control" readonly="readonly" />
-    </div>
-    <div class="form-group">
-        <label asp-for="@Model.ActualOrder.ReturnCents">ReturnCents:</label>
-        <input asp-for="@Model.ActualOrder.ReturnCents" class="form-control" readonly="readonly" />
-    </div>
-    <div class="form-group">
-        <label asp-for="@Model.ReturnCoinsString">Return Coins:</label>
-        <input asp-for="@Model.ReturnCoinsString" class="form-control" readonly="readonly" />
-    </div>
-    <div class="form-group">
-        <label asp-for="@Model.CoinDepotString">CoinDepot:</label>
-        <input asp-for="@Model.CoinDepotString" class="form-control" readonly="readonly" />
-    </div>
+      <div class="form-group">
+        <label asp-for="Product.Name" class="control-label"></label>
+        <input asp-for="Product.Name" class="form-control" />
+        <span asp-validation-for="Product.Name" class="text-danger"></span>
+      </div>
 
-    @if (@Model.ActualOrder.DonationCents > 0)
-    {
-        <div class="form-group">
-            <label asp-for="@Model.ActualOrder.DonationCents">Donation Cents:</label>
-            <input asp-for="@Model.ActualOrder.DonationCents" class="form-control"
-                   readonly="readonly" />
-        </div>
-    }
+      <div class="form-group">
+        <label asp-for="Product.PriceInCents" class="control-label"></label>
+        <input asp-for="Product.PriceInCents" class="form-control" />
+        <span asp-validation-for="Product.PriceInCents" class="text-danger"></span>
+      </div>
 
-    <div class="form-group">
-        <label>Thank you for your purchase!</label>
-    </div>
+      <input type="hidden" asp-for="Product.Id" />
 
-    <div class="form-group">
-        <button type="submit"
-                class="btn btn-primary"
-                asp-page-handler="NextCoffee">
-            Next Coffee
-        </button>
-    </div>
-</form>
+      <div class="form-group">
+        <input type="submit" value="Save" class="btn btn-primary" />
+      </div>
+
+    </form>
+
+  </div>
+
+</div>
+
+<div>
+  <a asp-page="./Index">Back to List</a>
+</div>
+
+
+
+
 ```
 
-## Bestellseite (mit Combobox)
+## Hinzufügen eines Produkts (Create)
 
 ## PageModel
 
 ```cs
-public class OrderThruCoffeeSelectionControlModel : PageModel
+public class CreateModel : PageModel
 {
-    private readonly IUnitOfWork _unitOfWork;
+  private readonly IUnitOfWork _unitOfWork;
 
-    public OrderThruCoffeeSelectionControlModel(IUnitOfWork unitOfWork)
+  public CreateModel(IUnitOfWork unitOfWork)
+  {
+    _unitOfWork = unitOfWork;
+  }
+
+  [BindProperty]
+  public Product Product { get; set; }
+
+  public IActionResult OnGet()
+  {
+      return new Page();
+  }
+
+  public async Task<IActionResult> OnPost()
+  {
+    if(!ModelState.IsValid)
     {
-        _unitOfWork = unitOfWork;
+      return Page();
     }
 
+    await _unitOfWork.Products.AddAsync(Product);
+    await _unitOfWork.SaveAsync();
 
-    [BindProperty]
-    public int ProductId { get; set; }
-
-    public IEnumerable<Product> Products { get; set; }
-
-
-    /// <summary>
-    /// Startseite wird zur Auswahl der Kaffeesorte verwendet
-    /// </summary>
-    /// <returns></returns>
-    public async Task OnGet()
-    {
-        ViewData["Message"] = "Welcome to our Coffee Machine implemented with Razor Pages!";
-        OrderController orderController = new OrderController(_unitOfWork);
-        Products = await orderController.GetProductsAsync();
-    }
-
-    /// <summary>
-    /// Auswahl des Kaffetyps und Anlegen einer Bestellung
-    /// </summary>
-    public async Task<IActionResult> OnPostProductSelected()
-    {
-        if (!ModelState.IsValid)
-        {
-        return Page();
-        }
-
-
-        var orderController = new OrderController(_unitOfWork);
-
-        Product product = await _unitOfWork.Products.GetByIdAsync(ProductId);
-        Order order = await orderController.OrderCoffeeAsync(product);
-
-        return RedirectToPage(
-            "/InsertCoin",
-            new { orderId = order.Id });
-    }
+    return RedirectToPage("./Index");
+  }
 }
 ```
 
@@ -420,32 +347,180 @@ public class OrderThruCoffeeSelectionControlModel : PageModel
 
 ```html
 @page
-@model CoffeeSlotMachine.Web.Pages.OrderThruCoffeeSelectionControlModel
+@model CoffeeSlotMachine.Web.Pages.Products.CreateModel
 @{
-    ViewData["Title"] = "Coffee Slot Home page";
+  ViewData["Title"] = "Create Product";
 }
 
+<h4>Create</h4>
+<hr />
+<div class="row">
+  <div class="col-md-4">
 
-<h2>@ViewData["Message"]</h2>
+    <form method="post">
+      <div asp-validation-summary="ModelOnly" class="text-danger"></div>
 
-<div asp-validation-summary="All"></div>
+      <div class="form-group">
+        <label asp-for="Product.Name" class="control-label"></label>
+        <input asp-for="Product.Name" class="form-control" />
+        <span asp-validation-for="Product.Name" class="text-danger"></span>
+      </div>
 
-<form method="post">
-    <div class="form-group">
-        Product:
-        <select asp-for="@Model.ProductId">
-            @foreach (var product in @Model.Products)
-            {
-                <option value=@product.Id>
-                    @(string.Format($"{product.Name,-25} {product.PriceInCents} ct").Replace(" ", "\xA0"))
-                </option>
-            }
-        </select>
-    </div>
-    <button type="submit"
-            class="btn btn-primary"
-            asp-page-handler="ProductSelected">
-        Select product
-    </button>
-</form>
+      <div class="form-group">
+        <label asp-for="Product.PriceInCents" class="control-label"></label>
+        <input asp-for="Product.PriceInCents" class="form-control" />
+        <span asp-validation-for="Product.PriceInCents" class="text-danger"></span>
+      </div>
+
+      <div class="form-group">
+        <input type="submit" value="Create" class="btn btn-primary" />
+      </div>
+
+    </form>
+
+  </div>
+
+</div>
+
+<div>
+  <a asp-page="./Index">Back to List</a>
+</div>
+
+
+
+
+```
+
+## Löschen eines Produkts (Delete)
+
+## PageModel
+
+```cs
+public class DeleteModel : PageModel
+{
+  private readonly IUnitOfWork _unitOfWork;
+
+  public DeleteModel(IUnitOfWork unitOfWork)
+  {
+    _unitOfWork = unitOfWork;
+  }
+
+  [BindProperty] 
+  public Product Product { get; set; }
+
+  public async Task<IActionResult> OnGet(int? id)
+  {
+    if(id == null)
+    {
+      return NotFound();
+    }
+
+    Product = await _unitOfWork.Products.GetByIdAsync(id.Value);
+    if(Product == null)
+    {
+      return NotFound();
+    }
+
+    return Page();
+  }
+
+  public async Task<IActionResult> OnPost(int? id)
+  {
+    if(id == null)
+    {
+      return NotFound();
+    }
+
+    Product = await _unitOfWork.Products.GetByIdAsync(id.Value);
+    if(Product == null)
+    {
+      return NotFound();
+    }
+
+    _unitOfWork.Products.Remove(Product);
+    await _unitOfWork.SaveAsync();
+
+    return RedirectToPage("./Index");
+  }
+}
+```
+
+## View
+
+```html
+@page
+@model CoffeeSlotMachine.Web.Pages.Products.DeleteModel
+@{
+  ViewData["Title"] = "Delete";
+}
+
+<h3>Are you sure you want to delete this?</h3>
+<div>
+  <h4>Product</h4>
+  <hr />
+  <dl class="row">
+    <dt class="col-sm-2">
+      @Html.DisplayNameFor(model => model.Product.Name)
+    </dt>
+    <dd class="col-sm-10">
+      @Html.DisplayFor(model => model.Product.Name)
+    </dd>
+
+    <dt class="col-sm-2">
+      @Html.DisplayNameFor(model => model.Product.PriceInCents)
+    </dt>
+    <dd class="col-sm-10">
+      @Html.DisplayFor(model => model.Product.PriceInCents)
+    </dd>
+
+    <dt class="col-sm-2">
+      @Html.DisplayNameFor(model => model.Product.RowVersion)
+    </dt>
+    <dd class="col-sm-10">
+      @Html.DisplayFor(model => model.Product.RowVersion)
+    </dd>
+  </dl>
+
+  <form method="post">
+    <input type="hidden" asp-for="@Model.Product.Id" />
+    <input type="submit" value="Delete" class="btn btn-danger" /> |
+    <a asp-page="./Index">Back to List</a>
+  </form>
+</div>
+
+
+```
+
+## Validierungen
+
+```cs
+/// <summary>
+/// Produkt mit Namen und Preis
+/// </summary>
+public class Product : EntityObject
+{
+  /// <summary>
+  /// Produktbezeichnung
+  /// </summary>
+  [DisplayName("Product")]
+  [MinLength(2)]
+  [MaxLength(30)]
+  [Required]
+  public string Name { get; set; }
+
+  [DisplayName("Price")]
+  [Range(0, 1000, ErrorMessage ="The {0} has to be between {1} and {2}")]
+  public int PriceInCents { get; set; }
+
+  /// <summary>
+  /// Bild wird als Byte[] direkt in Datenbank gespeichert
+  /// </summary>
+  public byte[] Image { get; set; }
+  public ICollection<Order> Orders { get; set; }
+
+  public Product()
+  {
+    Orders = new List<Order>();
+  }
+}
 ```

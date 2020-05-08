@@ -6,8 +6,8 @@ namespace CoffeeSlotMachine.Core.Contracts
 {
   public interface ICoinRepository
   {
-    Task<IEnumerable<Coin>> GetAllAsync();
-    Task<IEnumerable<Coin>> GetOrderedDescendingByValueAsync();
+    Task<Coin[]> GetAllAsync();
+    Task<Coin[]> GetOrderedDescendingByValueAsync();
     Task<Coin> GetByIdAsync(int id);
     
     Task AddAsync(Coin coin);
