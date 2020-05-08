@@ -20,7 +20,7 @@ public class CreateModel : PageModel
 
   public IActionResult OnGet()
   {
-      return new Page();
+      return Page();
   }
 
   public async Task<IActionResult> OnPost()
