@@ -15,11 +15,11 @@ namespace CoffeeSlotMachine.Core.Entities
     [DisplayName("Product")]
     [MinLength(2)]
     [MaxLength(30)]
-    [Required]
+    [Required(ErrorMessage = "Der Produktname ist verpflichtend!")]
     public string Name { get; set; }
 
     [DisplayName("Price")]
-    [Range(0, 1000, ErrorMessage ="The {0} has to be between {1} and {2}")]
+    [Range(0, 100, ErrorMessage ="The {0} has to be between {1} and {2}")]
     public int PriceInCents { get; set; }
 
     /// <summary>
