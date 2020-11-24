@@ -65,7 +65,7 @@ public class IndexModel : PageModel
       Find by name:
       <input type="text" name="SearchString" value="@Model.ProductFilter" />
       <input type="submit" value="Search" class="btn btn-default" /> |
-      <a asp-page="./Index">Back to full List</a>
+      <a asp-page="../Index">Back to full List</a>
     </p>
   </div>
 </form>
@@ -79,7 +79,7 @@ public class IndexModel : PageModel
       </th>
       <th>
         @Html.DisplayNameFor(model => model.Products.FirstOrDefault().PriceInCents)
-      </th> 
+      </th>
       <th>
         @Html.DisplayNameFor(model => model.Products.FirstOrDefault().RowVersion)
       </th>
@@ -105,7 +105,7 @@ public class IndexModel : PageModel
         <td>
           <a asp-page="./Edit" asp-route-id="@product.Id">Edit</a> |
           <a asp-page="./Details" asp-route-id="@product.Id">Details</a> |
-          <a asp-page="./Delete" asp-route-id="@product.Id">Delete</a> 
+          <a asp-page="./Delete" asp-route-id="@product.Id">Delete</a>
         </td>
       </tr>
     }
@@ -409,7 +409,7 @@ public class DeleteModel : PageModel
     _unitOfWork = unitOfWork;
   }
 
-  [BindProperty] 
+  [BindProperty]
   public Product Product { get; set; }
 
   public async Task<IActionResult> OnGet(int? id)
@@ -495,7 +495,7 @@ public class DeleteModel : PageModel
 
 ```
 
-## Validierungen
+## Validierungen (Modell)
 
 ```cs
 /// <summary>
@@ -527,4 +527,93 @@ public class Product : EntityObject
     Orders = new List<Order>();
   }
 }
+```
+
+
+## Validierungen (Datenbank)
+
+Es soll beim Speichern geprüft werden, ob noch kein gleiches Produkt in der Datenbank existiert.
+
+### UnitOfWork.cs
+
+```cs
+public async Task SaveAsync()
+{
+  var entities = _dbContext.ChangeTracker.Entries()
+      .Where(entity => entity.State == EntityState.Added
+                       || entity.State == EntityState.Modified)
+      .Select(e => e.Entity);
+  foreach (var entity in entities)
+  {
+    await ValidateEntity(entity);
+  }
+
+  await _dbContext.SaveChangesAsync();
+}
+
+/// <summary>
+/// Validierungen auf DbContext-Ebene
+/// </summary>
+/// <param name="entity"></param>
+private async Task ValidateEntity(object entity)
+{
+  if (entity is Product product)
+  {
+    if (await _dbContext.Products.AnyAsync(p => p.Id != product.Id && p.Name == product.Name))
+    {
+      throw new ValidationException($"Produkt mit Namen {product.Name} existiert bereits.");
+    }
+  }
+}
+```
+
+### Create.cshtml.cs (Product)
+
+```cs
+public async Task<IActionResult> OnPost()
+{
+  if (!ModelState.IsValid)
+  {
+    return Page();
+  }
+
+  await _unitOfWork.Products.AddAsync(Product);
+
+  try
+  {
+    await _unitOfWork.SaveAsync();
+  }
+  catch (ValidationException validationEx)
+  {
+    ModelState.AddModelError("Product.Name", validationEx.Message);
+    return Page();
+  }
+
+  return RedirectToPage("./Index");
+}
+```
+
+### Create.cshtml (Product)
+
+```html
+<form method="post">
+  <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+  <div class="form-group">
+    <label asp-for="Product.Name" class="control-label"></label>
+    <input asp-for="Product.Name" class="form-control" />
+    <span asp-validation-for="Product.Name" class="text-danger"></span>
+  </div>
+
+  <div class="form-group">
+    <label asp-for="Product.PriceInCents" class="control-label"></label>
+    <input asp-for="Product.PriceInCents" class="form-control" />
+    <span asp-validation-for="Product.PriceInCents" class="text-danger"></span>
+  </div>
+
+  <div class="form-group">
+    <input type="submit" value="Create" class="btn btn-primary" />
+  </div>
+
+</form>
 ```
