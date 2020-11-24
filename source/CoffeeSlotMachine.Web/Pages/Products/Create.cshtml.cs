@@ -31,7 +31,6 @@ namespace CoffeeSlotMachine.Web.Pages.Products
         return Page();
       }
 
-
       await _unitOfWork.Products.AddAsync(Product);
 
       try
