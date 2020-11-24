@@ -1,39 +1,50 @@
-﻿using System.Threading.Tasks;
-using CoffeeSlotMachine.Core.Contracts;
+﻿using CoffeeSlotMachine.Core.Contracts;
 using CoffeeSlotMachine.Core.Entities;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using System.ComponentModel.DataAnnotations;
+using System.Threading.Tasks;
 
 namespace CoffeeSlotMachine.Web.Pages.Products
 {
-public class CreateModel : PageModel
-{
-  private readonly IUnitOfWork _unitOfWork;
-
-  public CreateModel(IUnitOfWork unitOfWork)
+  public class CreateModel : PageModel
   {
-    _unitOfWork = unitOfWork;
-  }
+    private readonly IUnitOfWork _unitOfWork;
 
-  [BindProperty]
-  public Product Product { get; set; }
+    public CreateModel(IUnitOfWork unitOfWork)
+    {
+      _unitOfWork = unitOfWork;
+    }
 
-  public IActionResult OnGet()
-  {
-      return Page();
-  }
+    [BindProperty]
+    public Product Product { get; set; }
 
-  public async Task<IActionResult> OnPost()
-  {
-    if(!ModelState.IsValid)
+    public IActionResult OnGet()
     {
       return Page();
     }
 
-    await _unitOfWork.Products.AddAsync(Product);
-    await _unitOfWork.SaveAsync();
+    public async Task<IActionResult> OnPost()
+    {
+      if (!ModelState.IsValid)
+      {
+        return Page();
+      }
 
-    return RedirectToPage("./Index");
+
+      await _unitOfWork.Products.AddAsync(Product);
+
+      try
+      {
+        await _unitOfWork.SaveAsync();
+      }
+      catch (ValidationException validationEx)
+      {
+        ModelState.AddModelError("Product.Name", validationEx.Message);
+        return Page();
+      }
+
+      return RedirectToPage("./Index");
+    }
   }
-}
 }

@@ -1,7 +1,10 @@
 ﻿using CoffeeSlotMachine.Core.Contracts;
 using System;
+using System.Linq;
 using Microsoft.EntityFrameworkCore;
 using System.Threading.Tasks;
+using CoffeeSlotMachine.Core.Entities;
+using System.ComponentModel.DataAnnotations;
 
 namespace CoffeeSlotMachine.Persistence
 {
@@ -38,7 +41,31 @@ namespace CoffeeSlotMachine.Persistence
 
     public async Task SaveAsync()
     {
+      var entities = _dbContext.ChangeTracker.Entries()
+          .Where(entity => entity.State == EntityState.Added
+                           || entity.State == EntityState.Modified)
+          .Select(e => e.Entity);
+      foreach (var entity in entities)
+      {
+        await ValidateEntity(entity);
+      }
+      
       await _dbContext.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Validierungen auf DbContext-Ebene
+    /// </summary>
+    /// <param name="entity"></param>
+    private async Task ValidateEntity(object entity)
+    {
+      if (entity is Product product)
+      {
+        if (await _dbContext.Products.AnyAsync(p => p.Id != product.Id && p.Name == product.Name))
+        {
+          throw new ValidationException($"Produkt mit Namen {product.Name} existiert bereits.");
+        }
+      }
     }
 
     public async Task InitializeDatabaseAsync()
